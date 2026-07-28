@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>doc-parsing-service 测试台</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+         background: #f5f6f8; color: #1f2329; padding: 24px; }
+  h1 { font-size: 20px; margin-bottom: 4px; }
+  .sub { color: #8a8f99; font-size: 13px; margin-bottom: 20px; }
+  .panel { background: #fff; border-radius: 10px; padding: 20px;
+           box-shadow: 0 1px 3px rgba(0,0,0,.06); margin-bottom: 16px; }
+  .row { display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-end; }
+  .field { display: flex; flex-direction: column; gap: 6px; }
+  label { font-size: 13px; color: #5a5f69; }
+  select, input[type=text] { padding: 8px 10px; border: 1px solid #d9dce1;
+    border-radius: 6px; font-size: 14px; min-width: 160px; background: #fff; }
+  .drop { border: 2px dashed #c9ced6; border-radius: 10px; padding: 32px;
+    text-align: center; color: #8a8f99; cursor: pointer; transition: .2s; }
+  .drop:hover, .drop.over { border-color: #3370ff; color: #3370ff; background: #f0f5ff; }
+  .drop .fname { color: #3370ff; font-weight: 600; margin-top: 6px; }
+  button { padding: 9px 22px; border: none; border-radius: 6px; font-size: 14px;
+    cursor: pointer; background: #3370ff; color: #fff; }
+  button:disabled { background: #b3c6f5; cursor: not-allowed; }
+  .engines-check { display: flex; gap: 14px; flex-wrap: wrap; }
+  .engines-check label { display: flex; gap: 5px; align-items: center; font-size: 14px; }
+  .task { padding: 10px 14px; border-radius: 8px; background: #f7f8fa;
+    margin-top: 10px; font-size: 13px; display: flex; gap: 14px; align-items: center; }
+  .badge { padding: 2px 10px; border-radius: 10px; font-size: 12px; }
+  .b-pending { background: #fff3d6; color: #a1730a; }
+  .b-processing { background: #dbe9ff; color: #1f5fd6; }
+  .b-success { background: #d9f5e3; color: #1a7f47; }
+  .b-failure { background: #fde0e0; color: #c02c2c; }
+  .results { display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 16px; }
+  .result-card { background: #fff; border-radius: 10px; box-shadow: 0 1px 3px rgba(0,0,0,.06);
+    display: flex; flex-direction: column; overflow: hidden; }
+  .result-head { padding: 12px 16px; border-bottom: 1px solid #eef0f3;
+    display: flex; justify-content: space-between; align-items: center; }
+  .result-head b { font-size: 14px; }
+  .result-head span { font-size: 12px; color: #8a8f99; }
+  pre { padding: 16px; font-size: 12.5px; line-height: 1.6; overflow: auto;
+    max-height: 480px; white-space: pre-wrap; word-break: break-word;
+    font-family: "SF Mono", Consolas, monospace; flex: 1; }
+  .err { color: #c02c2c; padding: 16px; font-size: 13px; }
+  .hidden { display: none; }
+</style>
+</head>
+<body>
+  <h1>doc-parsing-service 测试台</h1>
+  <div class="sub">上传 PDF/图片 → 选择引擎 → 对比解析结果 ｜ <a href="/docs" target="_blank">API 文档</a></div>
+
+  <div class="panel">
+    <div class="drop" id="drop">
+      点击选择或拖拽文件到这里（PDF / PNG / JPG / TIFF）
+      <div class="fname" id="fname"></div>
+      <input type="file" id="file" class="hidden" accept=".pdf,.png,.jpg,.jpeg,.tiff,.tif,.bmp">
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="row">
+      <div class="field" style="flex:1">
+        <label>引擎（勾选多个进入对比模式）</label>
+        <div class="engines-check" id="engines">加载中…</div>
+      </div>
+      <div class="field">
+        <label>输出格式</label>
+        <select id="fmt">
+          <option value="markdown">Markdown</option>
+          <option value="json">JSON</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>&nbsp;</label>
+        <button id="go" disabled>开始解析</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel hidden" id="tasksPanel">
+    <label>任务</label>
+    <div id="tasks"></div>
+  </div>
+
+  <div class="results" id="results"></div>
+
+<script>
+const $ = id => document.getElementById(id);
+let selectedFile = null;
+
+// ---------- 引擎列表 ----------
+async function loadEngines() {
+  const r = await fetch('/v1/engines');
+  const d = await r.json();
+  const usable = d.engines.filter(e => e.loaded);
+  $('engines').innerHTML = usable.length
+    ? usable.map((e, i) =>
+        `<label><input type="checkbox" value="${e.name}" ${i===0?'checked':''}> ${e.name}</label>`).join('')
+    : '无可用引擎';
+  updateBtn();
+}
+
+// ---------- 文件选择 ----------
+const drop = $('drop'), fileInput = $('file');
+drop.onclick = () => fileInput.click();
+drop.ondragover = e => { e.preventDefault(); drop.classList.add('over'); };
+drop.ondragleave = () => drop.classList.remove('over');
+drop.ondrop = e => { e.preventDefault(); drop.classList.remove('over');
+  if (e.dataTransfer.files[0]) setFile(e.dataTransfer.files[0]); };
+fileInput.onchange = () => fileInput.files[0] && setFile(fileInput.files[0]);
+function setFile(f) { selectedFile = f; $('fname').textContent = f.name; updateBtn(); }
+
+function updateBtn() {
+  $('go').disabled = !selectedFile ||
+    ![...document.querySelectorAll('#engines input')].some(c => c.checked);
+}
+document.addEventListener('change', e => { if (e.target.type === 'checkbox') updateBtn(); });
+
+// ---------- 提交与轮询 ----------
+$('go').onclick = async () => {
+  const engines = [...document.querySelectorAll('#engines input:checked')].map(c => c.value);
+  $('tasksPanel').classList.remove('hidden');
+  $('results').innerHTML = '';
+  for (const engine of engines) {
+    const fd = new FormData();
+    fd.append('file', selectedFile);
+    fd.append('ocr_engine', engine);
+    fd.append('output_format', $('fmt').value);
+    const r = await fetch('/v1/parse', { method: 'POST', body: fd });
+    const d = await r.json();
+    addTask(engine, d.task_id);
+    poll(engine, d.task_id);
+  }
+};
+
+function addTask(engine, taskId) {
+  const el = document.createElement('div');
+  el.className = 'task'; el.id = 'task-' + taskId;
+  el.innerHTML = `<b>${engine}</b><span style="color:#8a8f99">${taskId.slice(0,8)}…</span>
+    <span class="badge b-pending">pending</span>`;
+  $('tasks').appendChild(el);
+}
+
+async function poll(engine, taskId) {
+  const badge = () => document.querySelector('#task-' + taskId + ' .badge');
+  while (true) {
+    await new Promise(r => setTimeout(r, 1500));
+    const r = await fetch('/v1/parse/' + taskId);
+    const d = await r.json();
+    const b = badge();
+    b.className = 'badge b-' + d.status;
+    b.textContent = d.status;
+    if (d.status === 'success') { showResult(d); break; }
+    if (d.status === 'failure') { showError(engine, d.error); break; }
+  }
+}
+
+// ---------- 结果展示 ----------
+function showResult(d) {
+  const card = document.createElement('div');
+  card.className = 'result-card';
+  const content = typeof d.content === 'string'
+    ? d.content : JSON.stringify(d.content, null, 2);
+  card.innerHTML = `<div class="result-head">
+      <b>${d.engine}</b><span>${d.elapsed_seconds}s · ${d.output_format}</span>
+    </div><pre></pre>`;
+  card.querySelector('pre').textContent = content;
+  $('results').appendChild(card);
+}
+
+function showError(engine, error) {
+  const card = document.createElement('div');
+  card.className = 'result-card';
+  card.innerHTML = `<div class="result-head"><b>${engine}</b></div>
+    <div class="err">${error || '未知错误'}</div>`;
+  $('results').appendChild(card);
+}
+
+loadEngines();
+</script>
+</body>
+</html>
