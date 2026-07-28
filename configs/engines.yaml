@@ -1,0 +1,39 @@
+# OCR 引擎注册表
+# 新增引擎只需在此加一条配置，并提供对应的适配器类，无需改动核心代码。
+
+default_engine: internal   # 未指定引擎时的默认项（内部模型上线后切换；过渡期可改为 rapidocr）
+
+engines:
+  internal:
+    adapter: app.adapters.internal_template.InternalModelAdapter
+    languages: [ch_sim, en]       # TODO: 以内部模型实际能力为准
+    default_for: [ch_sim, en]
+    resources: { device: cpu, preload: false }   # 待内部模型形态确认后调整
+    enabled: false                # 内部模型接入完成后置为 true
+
+  rapidocr:
+    adapter: app.adapters.rapidocr_adapter.RapidOcrAdapter
+    languages: [ch_sim, ch_tra, en]
+    default_for: []               # 内部模型上线前可设为 [ch_sim, en]
+    resources: { device: cpu, preload: true }
+    enabled: true
+
+  easyocr:
+    adapter: app.adapters.easyocr_adapter.EasyOcrAdapter
+    languages: [ch_sim, ch_tra, en, ja, ko, de, fr, es, ru, ar]
+    default_for: [ja, ko, de, fr, es, ru]
+    resources: { device: cpu, preload: false }   # 懒加载，首次使用才加载模型
+    enabled: true
+
+  tesseract:
+    adapter: app.adapters.tesseract_adapter.TesseractAdapter
+    languages: [eng, chi_sim, ara, tha, hin, vie]
+    default_for: [ara, tha, hin, vie]            # 小语种兜底
+    resources: { device: cpu, preload: true }
+    enabled: false                # 需要系统安装 tesseract-ocr，按需开启
+
+# 混合语言 / 检测置信度低的路由策略（VLM 路线，M5 阶段启用）
+vlm_fallback:
+  enabled: false
+  pipeline: vlm
+  model: granite_docling   # 或 qwen2.5-vl，需 GPU

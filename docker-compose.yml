@@ -1,0 +1,12 @@
+services:
+  doc-parsing-service:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      DPS_MAX_WORKERS: "1"
+      DPS_ENGINES_CONFIG: "configs/engines.yaml"
+    volumes:
+      # 引擎配置可外挂，改配置重启即生效
+      - ./configs:/srv/configs
+    restart: unless-stopped

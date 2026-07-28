@@ -1,0 +1,10 @@
+fastapi>=0.115
+uvicorn[standard]>=0.30
+pydantic>=2.7
+pydantic-settings>=2.3
+python-multipart>=0.0.9
+PyYAML>=6.0
+docling>=2.5
+rapidocr-onnxruntime>=1.4
+# easyocr 由 docling 可选依赖提供：pip install "docling[easyocr]"
+langdetect>=1.0.9
