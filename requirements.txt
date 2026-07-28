@@ -1,10 +1,26 @@
-fastapi>=0.115
-uvicorn[standard]>=0.30
-pydantic>=2.7
-pydantic-settings>=2.3
-python-multipart>=0.0.9
-PyYAML>=6.0
-docling>=2.5
-rapidocr-onnxruntime>=1.4
-# easyocr 由 docling 可选依赖提供：pip install "docling[easyocr]"
-langdetect>=1.0.9
+# doc-parsing-service 依赖（Python 3.11）
+# 安装: pip install -r requirements.txt
+
+# --- Web 框架 ---
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+python-multipart==0.0.20
+
+# --- 配置与数据模型 ---
+pydantic==2.10.4
+pydantic-settings==2.7.1
+PyYAML==6.0.2
+
+# --- 文档解析内核（Docling，含 EasyOCR 可选依赖）---
+docling[easyocr]==2.15.1
+
+# --- OCR 引擎 ---
+rapidocr-onnxruntime==1.4.4   # 本期 disabled，备用
+# tesseract 不走 pip，需系统安装（见 README / Dockerfile）
+
+# --- 辅助 ---
+pypdf==5.1.0                  # PDF 内嵌文本抽取（语言检测用，本期关闭但保留）
+langdetect==1.0.9
+
+# --- 测试 ---
+pytest==8.3.4
