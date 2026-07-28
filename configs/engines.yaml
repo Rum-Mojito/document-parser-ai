@@ -1,39 +1,40 @@
 # OCR 引擎注册表
 # 新增引擎只需在此加一条配置，并提供对应的适配器类，无需改动核心代码。
+# 本期场景：英文单语（外企环境）；多语言能力框架保留、配置关闭。
 
-default_engine: internal   # 未指定引擎时的默认项（内部模型上线后切换；过渡期可改为 rapidocr）
+default_engine: tesseract   # 内部模型接入后改为 internal；M4 实测后再定版
 
 engines:
   internal:
     adapter: app.adapters.internal_template.InternalModelAdapter
-    languages: [ch_sim, en]       # TODO: 以内部模型实际能力为准
-    default_for: [ch_sim, en]
-    resources: { device: cpu, preload: false }   # 待内部模型形态确认后调整
+    languages: [en]               # TODO: 以内部模型实际能力为准
+    default_for: [en]
+    resources: { device: cpu, preload: false }
     enabled: false                # 内部模型接入完成后置为 true
-
-  rapidocr:
-    adapter: app.adapters.rapidocr_adapter.RapidOcrAdapter
-    languages: [ch_sim, ch_tra, en]
-    default_for: []               # 内部模型上线前可设为 [ch_sim, en]
-    resources: { device: cpu, preload: true }
-    enabled: true
-
-  easyocr:
-    adapter: app.adapters.easyocr_adapter.EasyOcrAdapter
-    languages: [ch_sim, ch_tra, en, ja, ko, de, fr, es, ru, ar]
-    default_for: [ja, ko, de, fr, es, ru]
-    resources: { device: cpu, preload: false }   # 懒加载，首次使用才加载模型
-    enabled: true
 
   tesseract:
     adapter: app.adapters.tesseract_adapter.TesseractAdapter
-    languages: [eng, chi_sim, ara, tha, hin, vie]
-    default_for: [ara, tha, hin, vie]            # 小语种兜底
+    languages: [eng]
+    default_for: [en]
     resources: { device: cpu, preload: true }
-    enabled: false                # 需要系统安装 tesseract-ocr，按需开启
+    enabled: true                 # 主力候选A：清晰规整文档
 
-# 混合语言 / 检测置信度低的路由策略（VLM 路线，M5 阶段启用）
+  easyocr:
+    adapter: app.adapters.easyocr_adapter.EasyOcrAdapter
+    languages: [en]
+    default_for: []
+    resources: { device: cpu, preload: false }   # 懒加载
+    enabled: true                 # 主力候选B：低质量扫描件兜底
+
+  rapidocr:
+    adapter: app.adapters.rapidocr_adapter.RapidOcrAdapter
+    languages: [en]
+    default_for: []
+    resources: { device: cpu, preload: false }
+    enabled: false                # 优势在中文场景，本期不启用
+
+# VLM 路线（英文是 Granite-Docling 等模型效果最强的场景，可提前评估）
 vlm_fallback:
   enabled: false
   pipeline: vlm
-  model: granite_docling   # 或 qwen2.5-vl，需 GPU
+  model: granite_docling   # 需 GPU
